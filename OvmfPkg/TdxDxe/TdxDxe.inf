@@ -39,6 +39,9 @@
 [Depex]
   TRUE
 
+[Protocols]
+  gMemoryAcceptProtocolGuid
+
 [Guids]
   gUefiOvmfPkgTdxPlatformGuid                      ## CONSUMES
 
