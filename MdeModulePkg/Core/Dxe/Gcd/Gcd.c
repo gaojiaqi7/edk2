@@ -82,9 +82,6 @@ EFI_GCD_MAP_ENTRY mGcdIoSpaceMapEntryTemplate = {
   NULL,
   NULL
 };
-// TD
-#define EFI_RESOURCE_ATTRIBUTE_ENCRYPTED            0x04000000
-
 
 GCD_ATTRIBUTE_CONVERSION_ENTRY mAttributeConversionTable[] = {
   { EFI_RESOURCE_ATTRIBUTE_UNCACHEABLE,             EFI_MEMORY_UC,              TRUE  },

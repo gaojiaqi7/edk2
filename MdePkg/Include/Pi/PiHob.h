@@ -251,6 +251,10 @@ typedef UINT32 EFI_RESOURCE_ATTRIBUTE_TYPE;
 #define EFI_RESOURCE_ATTRIBUTE_INITIALIZED              0x00000002
 #define EFI_RESOURCE_ATTRIBUTE_TESTED                   0x00000004
 #define EFI_RESOURCE_ATTRIBUTE_READ_PROTECTED           0x00000080
+
+
+// TD
+#define EFI_RESOURCE_ATTRIBUTE_ENCRYPTED                0x04000000
 //
 // This is typically used as memory cacheability attribute today.
 // NOTE: Since PI spec 1.4, please use EFI_RESOURCE_ATTRIBUTE_READ_ONLY_PROTECTED

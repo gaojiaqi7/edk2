@@ -9,6 +9,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #include "DxeMain.h"
 #include "Imem.h"
 #include "HeapGuard.h"
+#include <Protocol/MemoryAccept.h>
 
 //
 // Entry for tracking the memory regions for each memory type to coalesce similar memory types
@@ -386,6 +387,101 @@ CoreFreeMemoryMapStack (
   }
 
   mFreeMapStack -= 1;
+}
+
+EFI_STATUS
+AcceptMemoryResource (
+  UINTN       AcceptSize
+  )
+{
+  LIST_ENTRY                        *Link;
+  EFI_GCD_MAP_ENTRY                 *GcdEntry;
+  EFI_PHYSICAL_ADDRESS              UnacceptedEntryBase;
+  UINTN                             UnacceptedEntryLength;
+  UINTN                             UnacceptedEntryCapability;
+  MEMORY_ACCEPT_PROTOCOL            *MemoryAcceptProtocol;
+  EFI_STATUS                        Status;
+
+  Status                = EFI_OUT_OF_RESOURCES;
+  UnacceptedEntryBase   = 0;
+  UnacceptedEntryLength = 0;
+  AcceptSize            = (AcceptSize + SIZE_32MB - 1) & ~(SIZE_32MB - 1);
+
+  Status = gBS->LocateProtocol (&gMemoryAcceptProtocolGuid, NULL, (VOID **)&MemoryAcceptProtocol);
+  if (EFI_ERROR (Status)) {
+    return EFI_UNSUPPORTED;
+  }
+
+  //
+  // Traverse the mGcdMemorySpaceMap to find out the unaccepted
+  // memory entry with enough size.
+  //
+  Link = mGcdMemorySpaceMap.ForwardLink;
+  while (Link != &mGcdMemorySpaceMap) {
+    GcdEntry = CR (Link, EFI_GCD_MAP_ENTRY, Link, EFI_GCD_MAP_SIGNATURE);
+
+    if (GcdEntry->GcdMemoryType == EfiGcdMemoryTypeUnaccepted) {
+      UnacceptedEntryBase   = GcdEntry->BaseAddress;
+      UnacceptedEntryLength = GcdEntry->EndAddress - GcdEntry->BaseAddress + 1;
+      UnacceptedEntryCapability = GcdEntry->Capabilities;
+      //
+      // Remove the target memory space from GCD.
+      //
+      if (AcceptSize <= UnacceptedEntryLength) {
+        CoreRemoveMemorySpace (GcdEntry->BaseAddress, UnacceptedEntryLength);
+        break;
+      }
+    }
+    Link = Link->ForwardLink;
+  }
+
+  if (Link == &mGcdMemorySpaceMap) {
+    return EFI_OUT_OF_RESOURCES;
+  }
+
+  //
+  // Accept the memory using the interface provide by the protocol.
+  //
+  Status = MemoryAcceptProtocol->AcceptMemory (MemoryAcceptProtocol, UnacceptedEntryBase, AcceptSize);
+  if (EFI_ERROR (Status)) {
+    return EFI_OUT_OF_RESOURCES;
+  }
+
+  //
+  // Update accepted part of the memory entry to type of EfiGcdMemoryTypeSystemMemory
+  // and add the range to the memory map.
+  //
+  CoreAddMemorySpace (
+      EfiGcdMemoryTypeSystemMemory,
+      UnacceptedEntryBase,
+      AcceptSize,
+      EFI_MEMORY_RUNTIME | EFI_MEMORY_CPU_CRYPTO | EFI_MEMORY_RO | EFI_MEMORY_RP | EFI_MEMORY_XP
+    );
+
+  CoreAcquireMemoryLock ();
+  CoreAddRange (
+      EfiConventionalMemory,
+      UnacceptedEntryBase,
+      UnacceptedEntryBase + AcceptSize - 1,
+      EFI_MEMORY_RUNTIME | EFI_MEMORY_CPU_CRYPTO | EFI_MEMORY_RO | EFI_MEMORY_RP | EFI_MEMORY_XP
+    );
+  CoreReleaseMemoryLock ();
+
+  //
+  // Add the remain part of unaccepted memory to the
+  // Gcd memory space and memory map.
+  //
+  //
+  if (UnacceptedEntryLength - AcceptSize > 0) {
+    CoreAddMemorySpace (
+      EfiGcdMemoryTypeUnaccepted,
+      UnacceptedEntryBase + AcceptSize,
+      UnacceptedEntryLength - AcceptSize,
+      UnacceptedEntryCapability
+      );
+  }
+
+  return EFI_SUCCESS;
 }
 
 /**
@@ -1355,14 +1451,17 @@ CoreInternalAllocatePages (
           mMemoryTypeStatistics[CheckType].NumberOfPages > 0) {
         if (Start >= mMemoryTypeStatistics[CheckType].BaseAddress &&
             Start <= mMemoryTypeStatistics[CheckType].MaximumAddress) {
+          DEBUG ((DEBUG_INFO, "Memory region %x start address: 0x%lx, Max: 0x%lx\n", CheckType, mMemoryTypeStatistics[CheckType].BaseAddress, mMemoryTypeStatistics[CheckType].MaximumAddress));
           return EFI_NOT_FOUND;
         }
         if (End >= mMemoryTypeStatistics[CheckType].BaseAddress &&
             End <= mMemoryTypeStatistics[CheckType].MaximumAddress) {
+          DEBUG ((DEBUG_INFO, "Memory region %x start address: 0x%lx, Max: 0x%lx\n", CheckType, mMemoryTypeStatistics[CheckType].BaseAddress, mMemoryTypeStatistics[CheckType].MaximumAddress));
           return EFI_NOT_FOUND;
         }
         if (Start < mMemoryTypeStatistics[CheckType].BaseAddress &&
             End   > mMemoryTypeStatistics[CheckType].MaximumAddress) {
+          DEBUG ((DEBUG_INFO, "Memory region %x start address: 0x%lx, Max: 0x%lx\n", CheckType, mMemoryTypeStatistics[CheckType].BaseAddress, mMemoryTypeStatistics[CheckType].MaximumAddress));
           return EFI_NOT_FOUND;
         }
       }
@@ -1442,6 +1541,18 @@ CoreAllocatePages (
   NeedGuard = IsPageTypeToGuard (MemoryType, Type) && !mOnGuarding;
   Status = CoreInternalAllocatePages (Type, MemoryType, NumberOfPages, Memory,
                                       NeedGuard);
+
+  if (Status == EFI_OUT_OF_RESOURCES && Type == AllocateAnyPages) {
+    Status = AcceptMemoryResource (NumberOfPages << EFI_PAGE_SHIFT);
+    if (!EFI_ERROR (Status)) {
+      Status = CoreInternalAllocatePages (Type, MemoryType, NumberOfPages, Memory,
+                                      NeedGuard);
+      DEBUG ((DEBUG_INFO, "CoreInternalAllocatePages STATUS 0x%x\n", Status));
+    } else {
+      Status = EFI_OUT_OF_RESOURCES;
+    }
+  }
+
   if (!EFI_ERROR (Status)) {
     CoreUpdateProfile (
       (EFI_PHYSICAL_ADDRESS) (UINTN) RETURN_ADDRESS (0),
@@ -1455,6 +1566,7 @@ CoreAllocatePages (
     ApplyMemoryProtectionPolicy (EfiConventionalMemory, MemoryType, *Memory,
       EFI_PAGES_TO_SIZE (NumberOfPages));
   }
+ 
   return Status;
 }
 
