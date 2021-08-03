@@ -391,25 +391,62 @@ CoreFreeMemoryMapStack (
 
 EFI_STATUS
 AcceptMemoryResource (
-  UINTN       AcceptSize
+  IN UINTN                    Type,
+  IN UINTN                    AcceptSize,
+  IN OUT EFI_PHYSICAL_ADDRESS *Memory
   )
 {
   LIST_ENTRY                        *Link;
   EFI_GCD_MAP_ENTRY                 *GcdEntry;
   EFI_PHYSICAL_ADDRESS              UnacceptedEntryBase;
+  UINTN                             UnacceptedEntryEnd;
   UINTN                             UnacceptedEntryLength;
   UINTN                             UnacceptedEntryCapability;
   MEMORY_ACCEPT_PROTOCOL            *MemoryAcceptProtocol;
+  UINTN                             Start;
+  UINTN                             End;
   EFI_STATUS                        Status;
 
-  Status                = EFI_OUT_OF_RESOURCES;
-  UnacceptedEntryBase   = 0;
-  UnacceptedEntryLength = 0;
-  AcceptSize            = (AcceptSize + SIZE_32MB - 1) & ~(SIZE_32MB - 1);
+  Status              = EFI_OUT_OF_RESOURCES;
+  UnacceptedEntryBase = 0;
+  UnacceptedEntryEnd  = 0;
+  AcceptSize          = (AcceptSize + SIZE_32MB - 1) & ~(SIZE_32MB - 1);
+
+  if (AcceptSize == 0) {
+    return EFI_INVALID_PARAMETER;
+  }
 
   Status = gBS->LocateProtocol (&gMemoryAcceptProtocolGuid, NULL, (VOID **)&MemoryAcceptProtocol);
   if (EFI_ERROR (Status)) {
     return EFI_UNSUPPORTED;
+  }
+
+  if (Type == AllocateAddress) {
+    Start = *Memory;
+    End   = *Memory + AcceptSize;
+  }
+
+  if (Type == AllocateMaxAddress) {
+    if (*Memory < EFI_PAGE_MASK) {
+      return EFI_INVALID_PARAMETER;
+    }
+
+    if ((*Memory & EFI_PAGE_MASK) != EFI_PAGE_MASK) {
+      //
+      // Change MaxAddress to be 1 page lower
+      //
+      *Memory -= EFI_PAGE_SIZE;
+
+      //
+      // Set MaxAddress to a page boundary
+      //
+      *Memory &= ~(UINT64)EFI_PAGE_MASK;
+
+      //
+      // Set MaxAddress to end of the page
+      //
+      *Memory |= EFI_PAGE_MASK;
+    }
   }
 
   //
@@ -421,7 +458,18 @@ AcceptMemoryResource (
     GcdEntry = CR (Link, EFI_GCD_MAP_ENTRY, Link, EFI_GCD_MAP_SIGNATURE);
 
     if (GcdEntry->GcdMemoryType == EfiGcdMemoryTypeUnaccepted) {
-      UnacceptedEntryBase   = GcdEntry->BaseAddress;
+      if (Type == AllocateMaxAddress) {
+        if (GcdEntry->BaseAddress + AcceptSize - 1 > *Memory) {
+          continue;
+        }
+      } else if (Type == AllocateAddress) {
+        if (GcdEntry->BaseAddress > *Memory || GcdEntry->EndAddress < *Memory + AcceptSize - 1) {
+          continue;
+        }
+      }
+
+      UnacceptedEntryBase = GcdEntry->BaseAddress;
+      UnacceptedEntryEnd  = GcdEntry->EndAddress;
       UnacceptedEntryLength = GcdEntry->EndAddress - GcdEntry->BaseAddress + 1;
       UnacceptedEntryCapability = GcdEntry->Capabilities;
       //
@@ -429,6 +477,11 @@ AcceptMemoryResource (
       //
       if (AcceptSize <= UnacceptedEntryLength) {
         CoreRemoveMemorySpace (GcdEntry->BaseAddress, UnacceptedEntryLength);
+
+        if (Type != AllocateAddress) {
+          Start = GcdEntry->BaseAddress;
+          End   = GcdEntry->BaseAddress + AcceptSize - 1;
+        }
         break;
       }
     }
@@ -442,9 +495,22 @@ AcceptMemoryResource (
   //
   // Accept the memory using the interface provide by the protocol.
   //
-  Status = MemoryAcceptProtocol->AcceptMemory (MemoryAcceptProtocol, UnacceptedEntryBase, AcceptSize);
+  Status = MemoryAcceptProtocol->AcceptMemory (MemoryAcceptProtocol, Start, AcceptSize);
   if (EFI_ERROR (Status)) {
     return EFI_OUT_OF_RESOURCES;
+  }
+
+  //
+  // Add the remain lower part of unaccepted memory to the
+  // Gcd memory space and memory map.
+  //
+  if (Start > UnacceptedEntryBase) {
+    CoreAddMemorySpace (
+      EfiGcdMemoryTypeUnaccepted,
+      UnacceptedEntryBase,
+      Start - UnacceptedEntryBase,
+      UnacceptedEntryCapability
+    );
   }
 
   //
@@ -453,30 +519,20 @@ AcceptMemoryResource (
   //
   CoreAddMemorySpace (
       EfiGcdMemoryTypeSystemMemory,
-      UnacceptedEntryBase,
+      Start,
       AcceptSize,
       EFI_MEMORY_RUNTIME | EFI_MEMORY_CPU_CRYPTO | EFI_MEMORY_RO | EFI_MEMORY_RP | EFI_MEMORY_XP
     );
 
-  CoreAcquireMemoryLock ();
-  CoreAddRange (
-      EfiConventionalMemory,
-      UnacceptedEntryBase,
-      UnacceptedEntryBase + AcceptSize - 1,
-      EFI_MEMORY_RUNTIME | EFI_MEMORY_CPU_CRYPTO | EFI_MEMORY_RO | EFI_MEMORY_RP | EFI_MEMORY_XP
-    );
-  CoreReleaseMemoryLock ();
-
   //
-  // Add the remain part of unaccepted memory to the
+  // Add the remain higher part of unaccepted memory to the
   // Gcd memory space and memory map.
   //
-  //
-  if (UnacceptedEntryLength - AcceptSize > 0) {
+  if (UnacceptedEntryEnd > End) {
     CoreAddMemorySpace (
       EfiGcdMemoryTypeUnaccepted,
-      UnacceptedEntryBase + AcceptSize,
-      UnacceptedEntryLength - AcceptSize,
+      End + 1,
+      UnacceptedEntryEnd - End,
       UnacceptedEntryCapability
       );
   }
@@ -1451,17 +1507,14 @@ CoreInternalAllocatePages (
           mMemoryTypeStatistics[CheckType].NumberOfPages > 0) {
         if (Start >= mMemoryTypeStatistics[CheckType].BaseAddress &&
             Start <= mMemoryTypeStatistics[CheckType].MaximumAddress) {
-          DEBUG ((DEBUG_INFO, "Memory region %x start address: 0x%lx, Max: 0x%lx\n", CheckType, mMemoryTypeStatistics[CheckType].BaseAddress, mMemoryTypeStatistics[CheckType].MaximumAddress));
           return EFI_NOT_FOUND;
         }
         if (End >= mMemoryTypeStatistics[CheckType].BaseAddress &&
             End <= mMemoryTypeStatistics[CheckType].MaximumAddress) {
-          DEBUG ((DEBUG_INFO, "Memory region %x start address: 0x%lx, Max: 0x%lx\n", CheckType, mMemoryTypeStatistics[CheckType].BaseAddress, mMemoryTypeStatistics[CheckType].MaximumAddress));
           return EFI_NOT_FOUND;
         }
         if (Start < mMemoryTypeStatistics[CheckType].BaseAddress &&
             End   > mMemoryTypeStatistics[CheckType].MaximumAddress) {
-          DEBUG ((DEBUG_INFO, "Memory region %x start address: 0x%lx, Max: 0x%lx\n", CheckType, mMemoryTypeStatistics[CheckType].BaseAddress, mMemoryTypeStatistics[CheckType].MaximumAddress));
           return EFI_NOT_FOUND;
         }
       }
@@ -1542,12 +1595,11 @@ CoreAllocatePages (
   Status = CoreInternalAllocatePages (Type, MemoryType, NumberOfPages, Memory,
                                       NeedGuard);
 
-  if (Status == EFI_OUT_OF_RESOURCES && Type == AllocateAnyPages) {
-    Status = AcceptMemoryResource (NumberOfPages << EFI_PAGE_SHIFT);
+  if (Status == EFI_OUT_OF_RESOURCES) {
+    Status = AcceptMemoryResource (Type, NumberOfPages << EFI_PAGE_SHIFT, Memory);
     if (!EFI_ERROR (Status)) {
       Status = CoreInternalAllocatePages (Type, MemoryType, NumberOfPages, Memory,
                                       NeedGuard);
-      DEBUG ((DEBUG_INFO, "CoreInternalAllocatePages STATUS 0x%x\n", Status));
     } else {
       Status = EFI_OUT_OF_RESOURCES;
     }
