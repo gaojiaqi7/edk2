@@ -69,6 +69,12 @@ CoreAllocatePoolPages (
   );
 
 
+EFI_STATUS
+AcceptMemoryResource (
+  IN UINTN                    Type,
+  IN UINTN                    AcceptSize,
+  IN OUT EFI_PHYSICAL_ADDRESS *Memory
+  );
 
 /**
   Internal function.  Frees pool pages allocated via AllocatePoolPages ()

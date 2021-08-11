@@ -391,26 +391,20 @@ CoreFreeMemoryMapStack (
 
 EFI_STATUS
 AcceptMemoryResource (
-  IN UINTN                    Type,
+  IN EFI_ALLOCATE_TYPE        Type,
   IN UINTN                    AcceptSize,
   IN OUT EFI_PHYSICAL_ADDRESS *Memory
   )
 {
   LIST_ENTRY                        *Link;
   EFI_GCD_MAP_ENTRY                 *GcdEntry;
-  EFI_PHYSICAL_ADDRESS              UnacceptedEntryBase;
-  UINTN                             UnacceptedEntryEnd;
-  UINTN                             UnacceptedEntryLength;
-  UINTN                             UnacceptedEntryCapability;
+  EFI_GCD_MAP_ENTRY                 UnacceptedEntry;
   MEMORY_ACCEPT_PROTOCOL            *MemoryAcceptProtocol;
   UINTN                             Start;
   UINTN                             End;
   EFI_STATUS                        Status;
 
-  Status              = EFI_OUT_OF_RESOURCES;
-  UnacceptedEntryBase = 0;
-  UnacceptedEntryEnd  = 0;
-  AcceptSize          = (AcceptSize + SIZE_32MB - 1) & ~(SIZE_32MB - 1);
+  AcceptSize = (AcceptSize + SIZE_32MB - 1) & ~(SIZE_32MB - 1);
 
   if (AcceptSize == 0) {
     return EFI_INVALID_PARAMETER;
@@ -427,6 +421,7 @@ AcceptMemoryResource (
   }
 
   if (Type == AllocateMaxAddress) {
+
     if (*Memory < EFI_PAGE_MASK) {
       return EFI_INVALID_PARAMETER;
     }
@@ -458,6 +453,7 @@ AcceptMemoryResource (
     GcdEntry = CR (Link, EFI_GCD_MAP_ENTRY, Link, EFI_GCD_MAP_SIGNATURE);
 
     if (GcdEntry->GcdMemoryType == EfiGcdMemoryTypeUnaccepted) {
+
       if (Type == AllocateMaxAddress) {
         if (GcdEntry->BaseAddress + AcceptSize - 1 > *Memory) {
           continue;
@@ -468,15 +464,13 @@ AcceptMemoryResource (
         }
       }
 
-      UnacceptedEntryBase = GcdEntry->BaseAddress;
-      UnacceptedEntryEnd  = GcdEntry->EndAddress;
-      UnacceptedEntryLength = GcdEntry->EndAddress - GcdEntry->BaseAddress + 1;
-      UnacceptedEntryCapability = GcdEntry->Capabilities;
+      UnacceptedEntry = *GcdEntry;
+
       //
       // Remove the target memory space from GCD.
       //
-      if (AcceptSize <= UnacceptedEntryLength) {
-        CoreRemoveMemorySpace (GcdEntry->BaseAddress, UnacceptedEntryLength);
+      if (AcceptSize <= UnacceptedEntry.EndAddress - UnacceptedEntry.BaseAddress + 1) {
+        CoreRemoveMemorySpace (GcdEntry->BaseAddress, UnacceptedEntry.EndAddress - UnacceptedEntry.BaseAddress + 1);
 
         if (Type != AllocateAddress) {
           Start = GcdEntry->BaseAddress;
@@ -504,12 +498,12 @@ AcceptMemoryResource (
   // Add the remain lower part of unaccepted memory to the
   // Gcd memory space and memory map.
   //
-  if (Start > UnacceptedEntryBase) {
+  if (Start > UnacceptedEntry.BaseAddress) {
     CoreAddMemorySpace (
       EfiGcdMemoryTypeUnaccepted,
-      UnacceptedEntryBase,
-      Start - UnacceptedEntryBase,
-      UnacceptedEntryCapability
+      UnacceptedEntry.BaseAddress,
+      Start - UnacceptedEntry.BaseAddress,
+      UnacceptedEntry.Capabilities
     );
   }
 
@@ -528,12 +522,12 @@ AcceptMemoryResource (
   // Add the remain higher part of unaccepted memory to the
   // Gcd memory space and memory map.
   //
-  if (UnacceptedEntryEnd > End) {
+  if (UnacceptedEntry.EndAddress > End) {
     CoreAddMemorySpace (
       EfiGcdMemoryTypeUnaccepted,
       End + 1,
-      UnacceptedEntryEnd - End,
-      UnacceptedEntryCapability
+      UnacceptedEntry.EndAddress - End,
+      UnacceptedEntry.Capabilities
       );
   }
 
@@ -1597,6 +1591,7 @@ CoreAllocatePages (
 
   if (Status == EFI_OUT_OF_RESOURCES) {
     Status = AcceptMemoryResource (Type, NumberOfPages << EFI_PAGE_SHIFT, Memory);
+    DEBUG ((DEBUG_INFO, "AcceptMemoryResource size: 0x%lx\n", NumberOfPages));
     if (!EFI_ERROR (Status)) {
       Status = CoreInternalAllocatePages (Type, MemoryType, NumberOfPages, Memory,
                                       NeedGuard);
@@ -2193,7 +2188,6 @@ CoreAllocatePoolPages (
   )
 {
   UINT64            Start;
-
   //
   // Find the pages to convert
   //
