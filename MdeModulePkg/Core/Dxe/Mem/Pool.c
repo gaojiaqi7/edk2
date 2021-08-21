@@ -277,15 +277,15 @@ CoreAllocatePool (
 
   Status = CoreInternalAllocatePool (PoolType, Size, Buffer);
 
-  // if (Status == EFI_OUT_OF_RESOURCES) {
-  //   Status = AcceptMemoryResource (AllocateAnyPages, Size, NULL);
-  //   DEBUG ((DEBUG_INFO, "AcceptMemoryResource size: 0x%lx\n", Size));
-  //   if (!EFI_ERROR (Status)) {
-  //     Status = CoreInternalAllocatePool (PoolType, Size, Buffer);
-  //   } else {
-  //     Status = EFI_OUT_OF_RESOURCES;
-  //   }
-  // }
+  if (Status == EFI_OUT_OF_RESOURCES) {
+    Status = AcceptMemoryResource (AllocateAnyPages, Size, NULL);
+    DEBUG ((DEBUG_INFO, "AcceptMemoryResource size: 0x%lx\n", Size));
+    if (!EFI_ERROR (Status)) {
+      Status = CoreInternalAllocatePool (PoolType, Size, Buffer);
+    } else {
+      Status = EFI_OUT_OF_RESOURCES;
+    }
+  }
 
   if (!EFI_ERROR (Status)) {
     CoreUpdateProfile (
@@ -297,6 +297,8 @@ CoreAllocatePool (
       NULL
       );
     InstallMemoryAttributesTableOnMemoryAllocation (PoolType);
+  } else {
+    DEBUG ((DEBUG_INFO, "CoreAllocatePool error: 0x%lx\n", Size));
   }
   return Status;
 }

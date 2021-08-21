@@ -62,7 +62,7 @@ EFI_MEMORY_TYPE_STATISTICS mMemoryTypeStatistics[EfiMaxMemoryType + 1] = {
   { 0, MAX_ALLOC_ADDRESS, 0, 0, EfiMaxMemoryType, FALSE, FALSE },  // EfiMemoryMappedIOPortSpace
   { 0, MAX_ALLOC_ADDRESS, 0, 0, EfiMaxMemoryType, TRUE,  TRUE  },  // EfiPalCode
   { 0, MAX_ALLOC_ADDRESS, 0, 0, EfiMaxMemoryType, FALSE, FALSE },  // EfiPersistentMemory
-  { 0, MAX_ALLOC_ADDRESS, 0, 0, EfiMaxMemoryType, TRUE,  FALSE },   // EfiUnacceptedMemory
+  { 0, MAX_ALLOC_ADDRESS, 0, 0, EfiMaxMemoryType, TRUE,  FALSE },  // EfiUnacceptedMemory
   { 0, MAX_ALLOC_ADDRESS, 0, 0, EfiMaxMemoryType, FALSE, FALSE }   // EfiMaxMemoryType
 };
 
@@ -1496,9 +1496,12 @@ CoreInternalAllocatePages (
     //
 
     for (CheckType = (EFI_MEMORY_TYPE) 0; CheckType < EfiMaxMemoryType; CheckType++) {
+      DEBUG ((DEBUG_INFO, "mMemoryTypeStatistics[] type: 0x%x, Special: 0x%x, NumberOfPages: 0x%x, BaseAddress: 0x%lx\n",
+            CheckType, mMemoryTypeStatistics[CheckType].Special, mMemoryTypeStatistics[CheckType].NumberOfPages, mMemoryTypeStatistics[CheckType].BaseAddress));
       if (MemoryType != CheckType &&
           mMemoryTypeStatistics[CheckType].Special &&
           mMemoryTypeStatistics[CheckType].NumberOfPages > 0) {
+        DEBUG ((DEBUG_INFO, "mMemoryTypeStatistics if true\n"));
         if (Start >= mMemoryTypeStatistics[CheckType].BaseAddress &&
             Start <= mMemoryTypeStatistics[CheckType].MaximumAddress) {
           return EFI_NOT_FOUND;
@@ -1513,6 +1516,8 @@ CoreInternalAllocatePages (
         }
       }
     }
+
+    DEBUG ((DEBUG_INFO, "Found MemoryType: 0x%x of specified address\n", MemoryType));
   }
 
   if (Type == AllocateMaxAddress) {

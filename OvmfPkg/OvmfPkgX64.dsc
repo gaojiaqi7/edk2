@@ -1024,7 +1024,7 @@
   OvmfPkg/IoMmuDxe/IoMmuDxe.inf
 
   OvmfPkg/TdxDxe/TdxDxe.inf  
-
+  OvmfPkg/MyMemoryTest/MyMemoryTest.inf
 !if $(SMM_REQUIRE) == TRUE
   OvmfPkg/SmmAccess/SmmAccess2Dxe.inf
   OvmfPkg/SmmControl2Dxe/SmmControl2Dxe.inf

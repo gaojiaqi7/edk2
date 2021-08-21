@@ -726,6 +726,7 @@ CoreLoadPeImage (
   //
   if ((Attribute & EFI_LOAD_PE_IMAGE_ATTRIBUTE_RUNTIME_REGISTRATION) != 0) {
     if (Image->ImageContext.ImageType == EFI_IMAGE_SUBSYSTEM_EFI_RUNTIME_DRIVER) {
+      DEBUG ((DEBUG_INFO, "AllocateRuntimePool(): 0x%lx\n", (UINTN)(Image->ImageContext.FixupDataSize)));
       Image->ImageContext.FixupData = AllocateRuntimePool ((UINTN)(Image->ImageContext.FixupDataSize));
       if (Image->ImageContext.FixupData == NULL) {
         Status = EFI_OUT_OF_RESOURCES;

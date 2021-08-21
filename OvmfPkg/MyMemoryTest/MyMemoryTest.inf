@@ -1,0 +1,24 @@
+[Defines]
+  INF_VERSION = 0x00010006
+  BASE_NAME = MyMemoryTest
+  FILE_GUID = 69A6DE6D-FA9F-485E-9A3E-EA70FDCFC82A
+  MODULE_TYPE = UEFI_APPLICATION
+  VERSION_STRING = 1.0
+  ENTRY_POINT = UefiMain
+
+[Sources]
+  MyMemoryTest.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+  MemoryAllocationLib
+  UefiLib
+  PcdLib

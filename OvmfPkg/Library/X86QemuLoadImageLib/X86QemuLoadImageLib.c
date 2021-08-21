@@ -295,7 +295,7 @@ QemuLoadKernelImage (
   // Redundant assignment to work around GCC48/GCC49 limitations.
   //
   CommandLine = NULL;
-
+  DEBUG ((DEBUG_INFO, "try running qemu load kernel\n"));
   //
   // Load the image. This should call back into the QEMU EFI loader file system.
   //
@@ -307,8 +307,10 @@ QemuLoadKernelImage (
                   0,                        // SourceSize
                   &KernelImageHandle
                   );
+  DEBUG ((DEBUG_INFO, "Qemu load kernel image status: 0x%x\n", Status));
   switch (Status) {
   case EFI_SUCCESS:
+    DEBUG ((DEBUG_INFO, "Qemu load kernel image success\n"));
     break;
 
   case EFI_NOT_FOUND:
@@ -415,9 +417,10 @@ QemuLoadKernelImage (
     // NUL-terminate in UTF-16.
     //
     KernelLoadedImage->LoadOptionsSize += 2;
-
+    DEBUG ((DEBUG_INFO, "AllocatePool() for KernelLoadedImage->LoadOptions: 0x%lx\n", KernelLoadedImage->LoadOptionsSize));
     KernelLoadedImage->LoadOptions = AllocatePool (
                                        KernelLoadedImage->LoadOptionsSize);
+
     if (KernelLoadedImage->LoadOptions == NULL) {
       KernelLoadedImage->LoadOptionsSize = 0;
       Status = EFI_OUT_OF_RESOURCES;
@@ -483,12 +486,13 @@ QemuStartKernelImage (
   if (!EFI_ERROR (Status)) {
     return QemuStartLegacyImage (*ImageHandle);
   }
-
+  DEBUG ((DEBUG_INFO, "Qemu start kernel image\n"));
   Status = gBS->StartImage (
                   *ImageHandle,
                   NULL,              // ExitDataSize
                   NULL               // ExitData
                   );
+  DEBUG ((DEBUG_INFO, "Qemu after start kernel image\n"));
 #ifdef MDE_CPU_IA32
   if (Status == EFI_UNSUPPORTED) {
     EFI_HANDLE KernelImageHandle;
