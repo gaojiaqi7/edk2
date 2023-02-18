@@ -205,7 +205,7 @@ CheckDevice (
   //
   // In Td guest OptionRom is not allowed.
   //
-  if (CcProbe ()) {
+  if (CcProbe () || TRUE) {
     Length += sizeof mOptionRomConfiguration;
   }
 
@@ -227,7 +227,7 @@ CheckDevice (
   CopyMem (Ptr, &mMmio64Configuration, sizeof mMmio64Configuration);
   Length = sizeof mMmio64Configuration;
 
-  if (CcProbe ()) {
+  if (CcProbe () || TRUE) {
     CopyMem (Ptr + Length, &mOptionRomConfiguration, sizeof mOptionRomConfiguration);
     Length += sizeof mOptionRomConfiguration;
   }
