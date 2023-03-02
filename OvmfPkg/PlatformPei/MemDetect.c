@@ -349,7 +349,7 @@ InitializeRamRegions (
   IN EFI_HOB_PLATFORM_INFO  *PlatformInfoHob
   )
 {
-  if (TdIsEnabled ()) {
+  if (TdIsEnabled () && !TdpIsEnabled ()) {
     PlatformTdxPublishRamRegions ();
     return;
   }

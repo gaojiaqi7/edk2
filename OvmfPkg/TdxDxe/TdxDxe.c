@@ -341,7 +341,7 @@ TdxDxeEntryPoint (
   SetPcdSettings (PlatformInfo);
  #endif
 
-  if (!TdIsEnabled ()) {
+  if (!TdIsEnabled () || TdpIsEnabled ()) {
     //
     // If it is Non-Td guest, we install gEfiMpInitLibMpDepProtocolGuid so that
     // MpInitLib will be used in CpuDxe driver.

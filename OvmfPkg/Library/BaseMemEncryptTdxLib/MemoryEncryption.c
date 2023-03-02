@@ -587,21 +587,17 @@ SetOrClearSharedBit (
   }
 
   //
-  // If changing shared to private, must accept-page again
+  // If changing shared to private, must accept-page again if needed
   //
   if (Mode == ClearSharedBit) {
     Status = gBS->LocateProtocol (&gEdkiiMemoryAcceptProtocolGuid, NULL, (VOID **)&MemoryAcceptProtocol);
-    if (EFI_ERROR (Status)) {
-      DEBUG ((DEBUG_ERROR, "%a: Failed to locate MemoryAcceptProtocol with %r\n", __func__, Status));
-      ASSERT (FALSE);
-      return Status;
-    }
-
-    Status = MemoryAcceptProtocol->AcceptMemory (MemoryAcceptProtocol, PhysicalAddress, Length);
-    if (EFI_ERROR (Status)) {
-      DEBUG ((DEBUG_ERROR, "%a: Failed to AcceptMemory with %r\n", __func__, Status));
-      ASSERT (FALSE);
-      return Status;
+    if (!EFI_ERROR (Status)) {
+      Status = MemoryAcceptProtocol->AcceptMemory (MemoryAcceptProtocol, PhysicalAddress, Length);
+      if (EFI_ERROR (Status)) {
+        DEBUG ((DEBUG_ERROR, "%a: Failed to AcceptMemory with %r\n", __func__, Status));
+        ASSERT (FALSE);
+        return Status;
+      }
     }
   }
 
