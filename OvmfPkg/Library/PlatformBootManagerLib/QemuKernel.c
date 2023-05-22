@@ -39,6 +39,10 @@ TryRunningQemuKernel (
   //
   // Start the image.
   //
+  RELEASE_DEBUG ((DEBUG_INFO,
+      "TSC before QemuStartKernelImage: %lu\n",
+      AsmReadTsc()
+    ));
   Status = QemuStartKernelImage (&KernelImageHandle);
   if (EFI_ERROR (Status)) {
     DEBUG ((

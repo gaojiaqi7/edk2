@@ -27,6 +27,7 @@
 #include <Library/TdxHelperLib.h>
 #include <Library/CcProbeLib.h>
 #include <Library/PeilessStartupLib.h>
+#include <Library/TimerLib.h>
 
 #define SEC_IDT_ENTRY_COUNT  34
 
@@ -60,6 +61,12 @@ SecCoreStartupWithStack (
   IA32_DESCRIPTOR       IdtDescriptor;
   UINT32                Index;
   volatile UINT8        *Table;
+
+  RELEASE_DEBUG ((DEBUG_INFO,
+      "TSC in main32: %lu, %lu\n",
+      *(UINT32*)0x0080a000,
+      *(UINT32*)0x0080a004
+    ));
 
   if (CcProbe () == CcGuestTypeIntelTdx) {
     //

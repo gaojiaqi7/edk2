@@ -751,7 +751,15 @@ ProcessHobList (
     APsStackStartAddress = 0;
   }
 
+  RELEASE_DEBUG ((DEBUG_INFO,
+      "TSC before accept memory: %lu\n",
+      AsmReadTsc()
+    ));
   Status = AcceptMemory (VmmHobList, CpusNum, APsStackStartAddress, PhysicalEnd);
+  RELEASE_DEBUG ((DEBUG_INFO,
+      "TSC after accept memory: %lu\n",
+      AsmReadTsc()
+    ));
   ASSERT (Status == EFI_SUCCESS);
 
   return Status;

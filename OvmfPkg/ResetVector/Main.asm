@@ -48,6 +48,9 @@ BITS    32
 ; Entry point of Main32
 ;
 Main32:
+    rdtsc
+    mov         [0x0080a000], edx
+    mov         [0x0080a004], eax
     OneTimeCall InitTdx
 
 SearchBfv:

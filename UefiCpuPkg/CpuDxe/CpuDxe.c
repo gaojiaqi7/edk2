@@ -1241,6 +1241,9 @@ InitializeCpu (
 {
   EFI_STATUS  Status;
   EFI_EVENT   IdleLoopEvent;
+  UINT64 BeginValue;
+  UINT64 EndValue;
+  UINT64 TscFreq;
 
   InitializePageTableLib ();
 
@@ -1297,5 +1300,22 @@ InitializeCpu (
 
   InitializeMpSupport ();
 
+  //
+  // Read time stamp counter before and after delay of 100 microseconds
+  //
+  BeginValue = AsmReadTsc ();
+  MicroSecondDelay (1000);
+  EndValue   = AsmReadTsc ();
+  //
+  // Calculate the actual frequency
+  //
+  TscFreq = MultU64x32 (
+                    EndValue - BeginValue,
+                    1000
+                    );
+  RELEASE_DEBUG ((DEBUG_INFO,
+      "TscFreq: %lu\n",
+      TscFreq
+    ));
   return Status;
 }

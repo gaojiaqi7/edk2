@@ -380,6 +380,11 @@ UnitTestDebugAssert (
 #define _DEBUG(Expression)  DebugPrint Expression
 #endif
 
+#define RELEASE_DEBUG(Expression)        \
+    do {                           \
+        _DEBUG (Expression);       \
+    } while (FALSE)
+
 /**
   Macro that calls DebugAssert() if an expression evaluates to FALSE.
 
