@@ -73,7 +73,7 @@ QemuFwCfgProbe (
   IoReadFifo8 (FW_CFG_IO_DATA, sizeof Signature, &Signature);
   IoWrite16 (FW_CFG_IO_SELECTOR, (UINT16)QemuFwCfgItemInterfaceVersion);
   IoReadFifo8 (FW_CFG_IO_DATA, sizeof Revision, &Revision);
-  CcGuest = QemuFwCfgIsCcGuest ();
+  CcGuest = QemuFwCfgIsCcGuest () || TdpIsEnabled ();
 
   *Supported    = FALSE;
   *DmaSupported = FALSE;
@@ -204,7 +204,7 @@ InternalQemuFwCfgDmaBytes (
   // TDX does not support DMA operations in PEI stage, we should
   // not have reached here.
   //
-  ASSERT (!QemuFwCfgIsCcGuest ());
+  ASSERT (!QemuFwCfgIsCcGuest () && !TdpIsEnabled ());
 
   Access.Control = SwapBytes32 (Control);
   Access.Length  = SwapBytes32 (Size);
