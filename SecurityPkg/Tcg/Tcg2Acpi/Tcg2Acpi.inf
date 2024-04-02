@@ -62,7 +62,6 @@
 [Guids]
   gEfiTpmDeviceInstanceTpm20DtpmGuid                            ## PRODUCES           ## GUID       # TPM device identifier
   gTpmNvsMmGuid                                                 ## CONSUMES
-  gEdkiiPiSmmCommunicationRegionTableGuid                       ## CONSUMES
 
 [Protocols]
   gEfiAcpiTableProtocolGuid                                     ## CONSUMES
@@ -90,5 +89,4 @@
 
 [Depex]
   gEfiAcpiTableProtocolGuid AND
-  gTcg2MmSwSmiRegisteredGuid AND
   gEfiTcg2ProtocolGuid

@@ -163,103 +163,6 @@ AssignOpRegion (
 }
 
 /**
-  Locate the MM communication buffer and protocol, then use it to exchange information with
-  Tcg2StandaloneMmm on NVS address and SMI value.
-
-  @param[in, out] TcgNvs         The NVS subject to send to MM environment.
-
-  @return                        The status for locating MM common buffer, communicate to MM, etc.
-
-**/
-EFI_STATUS
-EFIAPI
-ExchangeCommonBuffer (
-  IN OUT  TCG_NVS  *TcgNvs
-  )
-{
-  EFI_STATUS                               Status;
-  EFI_MM_COMMUNICATION_PROTOCOL            *MmCommunication;
-  EDKII_PI_SMM_COMMUNICATION_REGION_TABLE  *PiSmmCommunicationRegionTable;
-  EFI_MEMORY_DESCRIPTOR                    *MmCommMemRegion;
-  EFI_MM_COMMUNICATE_HEADER                *CommHeader;
-  TPM_NVS_MM_COMM_BUFFER                   *CommBuffer;
-  UINTN                                    CommBufferSize;
-  UINTN                                    Index;
-
-  // Step 0: Sanity check for input argument
-  if (TcgNvs == NULL) {
-    DEBUG ((DEBUG_ERROR, "%a - Input argument is NULL!\n", __func__));
-    return EFI_INVALID_PARAMETER;
-  }
-
-  // Step 1: Grab the common buffer header
-  Status = EfiGetSystemConfigurationTable (&gEdkiiPiSmmCommunicationRegionTableGuid, (VOID **)&PiSmmCommunicationRegionTable);
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "%a - Failed to locate SMM communciation common buffer - %r!\n", __func__, Status));
-    return Status;
-  }
-
-  // Step 2: Grab one that is large enough to hold TPM_NVS_MM_COMM_BUFFER, the IPL one should be sufficient
-  CommBufferSize  = 0;
-  MmCommMemRegion = (EFI_MEMORY_DESCRIPTOR *)(PiSmmCommunicationRegionTable + 1);
-  for (Index = 0; Index < PiSmmCommunicationRegionTable->NumberOfEntries; Index++) {
-    if (MmCommMemRegion->Type == EfiConventionalMemory) {
-      CommBufferSize = EFI_PAGES_TO_SIZE ((UINTN)MmCommMemRegion->NumberOfPages);
-      if (CommBufferSize >= (sizeof (TPM_NVS_MM_COMM_BUFFER) + OFFSET_OF (EFI_MM_COMMUNICATE_HEADER, Data))) {
-        break;
-      }
-    }
-
-    MmCommMemRegion = (EFI_MEMORY_DESCRIPTOR *)((UINT8 *)MmCommMemRegion + PiSmmCommunicationRegionTable->DescriptorSize);
-  }
-
-  if (Index >= PiSmmCommunicationRegionTable->NumberOfEntries) {
-    // Could not find one that meets our goal...
-    DEBUG ((DEBUG_ERROR, "%a - Could not find a common buffer that is big enough for NVS!\n", __func__));
-    return EFI_OUT_OF_RESOURCES;
-  }
-
-  // Step 3: Start to populate contents
-  // Step 3.1: MM Communication common header
-  CommHeader     = (EFI_MM_COMMUNICATE_HEADER *)(UINTN)MmCommMemRegion->PhysicalStart;
-  CommBufferSize = sizeof (TPM_NVS_MM_COMM_BUFFER) + OFFSET_OF (EFI_MM_COMMUNICATE_HEADER, Data);
-  ZeroMem (CommHeader, CommBufferSize);
-  CopyGuid (&CommHeader->HeaderGuid, &gTpmNvsMmGuid);
-  CommHeader->MessageLength = sizeof (TPM_NVS_MM_COMM_BUFFER);
-
-  // Step 3.2: TPM_NVS_MM_COMM_BUFFER content per our needs
-  CommBuffer                = (TPM_NVS_MM_COMM_BUFFER *)(CommHeader->Data);
-  CommBuffer->Function      = TpmNvsMmExchangeInfo;
-  CommBuffer->TargetAddress = (EFI_PHYSICAL_ADDRESS)(UINTN)TcgNvs;
-
-  // Step 4: Locate the protocol and signal Mmi.
-  Status = gBS->LocateProtocol (&gEfiMmCommunicationProtocolGuid, NULL, (VOID **)&MmCommunication);
-  if (!EFI_ERROR (Status)) {
-    Status = MmCommunication->Communicate (MmCommunication, CommHeader, &CommBufferSize);
-    DEBUG ((DEBUG_INFO, "%a - Communicate() = %r\n", __func__, Status));
-  } else {
-    DEBUG ((DEBUG_ERROR, "%a - Failed to locate MmCommunication protocol - %r\n", __func__, Status));
-    return Status;
-  }
-
-  // Step 5: If everything goes well, populate the channel number
-  if (!EFI_ERROR (CommBuffer->ReturnStatus)) {
-    // Need to demote to UINT8 according to SMI value definition
-    TcgNvs->PhysicalPresence.SoftwareSmi = (UINT8)CommBuffer->RegisteredPpSwiValue;
-    TcgNvs->MemoryClear.SoftwareSmi      = (UINT8)CommBuffer->RegisteredMcSwiValue;
-    DEBUG ((
-      DEBUG_INFO,
-      "%a Communication returned software SMI value. PP: 0x%x; MC: 0x%x.\n",
-      __func__,
-      TcgNvs->PhysicalPresence.SoftwareSmi,
-      TcgNvs->MemoryClear.SoftwareSmi
-      ));
-  }
-
-  return (EFI_STATUS)CommBuffer->ReturnStatus;
-}
-
-/**
   Patch version string of Physical Presence interface supported by platform. The initial string tag in TPM
 ACPI table is "$PV".
 
@@ -745,8 +648,6 @@ PublishAcpiTable (
   ASSERT (mTcgNvs != NULL);
   mTcgNvs->TpmIrqNum            = PcdGet32 (PcdTpm2CurrentIrqNum);
   mTcgNvs->IsShortFormPkgLength = IsShortFormPkgLength;
-
-  Status = ExchangeCommonBuffer (mTcgNvs);
 
   //
   // Publish the TPM ACPI table. Table is re-checksummed.
