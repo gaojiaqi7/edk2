@@ -15,6 +15,7 @@
       NULL|SecurityPkg/Library/HashInstanceLibSm3/HashInstanceLibSm3.inf
   }
   SecurityPkg/Tcg/Tcg2Config/Tcg2ConfigDxe.inf
+  SecurityPkg/Tcg/Tcg2Acpi/Tcg2Acpi.inf
 !if $(TPM1_ENABLE) == TRUE
   SecurityPkg/Tcg/TcgDxe/TcgDxe.inf {
     <LibraryClasses>
