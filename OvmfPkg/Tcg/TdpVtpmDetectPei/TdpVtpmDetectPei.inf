@@ -1,0 +1,43 @@
+## @file
+# Detect vTPM for TDP guest.
+#
+# Copyright (c) 2024, Intel Corporation. All rights reserved.<BR>
+#
+# SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = TdpVtpmDetectPei
+  FILE_GUID                      = 079B4B31-F173-4E38-AB77-39F39580FAE1
+  MODULE_TYPE                    = PEIM
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = TdpVtpmDetectPeiEntryPoint
+
+[Sources]
+  TdpVtpmDetectPei.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  OvmfPkg/OvmfPkg.dec
+  SecurityPkg/SecurityPkg.dec
+
+[LibraryClasses]
+  DebugLib
+  PeimEntryPoint
+  PeiServicesLib
+  HobLib
+
+[Guids]
+  gTcgEvent2EntryHobGuid              ## PRODUCES  ## HOB
+
+[Ppis]
+  gEfiPeiFirmwareVolumeInfoMeasurementExcludedPpiGuid    ## SOMETIMES_PRODUCES
+  gOvmfTpmMmioAccessiblePpiGuid                          ## PRODUCES
+
+[Pcd]
+  gEfiSecurityPkgTokenSpaceGuid.PcdTpm2InitializationPolicy        ## PRODUCES
+
+[Depex]
+  gEfiPeiMemoryDiscoveredPpiGuid
